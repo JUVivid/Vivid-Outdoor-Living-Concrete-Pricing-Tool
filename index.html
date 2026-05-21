@@ -674,58 +674,77 @@ function computeCoatings(coating_sqft, border_lf) {
 function computeQuote(input) {
   const { L_ft, W_ft, T_in, finish, fiber, rebar, moisture, pump, grading,
           coating_sqft = 0, border_lf = 0 } = input;
-  const dims = computeYards({ L_ft, W_ft, T_in });
-  const billed = dims.billed_yards;
 
-  const base = computeBaseCost(dims.sqft, T_in, finish);
+  const has_concrete = L_ft > 0 && W_ft > 0;
 
-  const yard_adder_lines = [];
-  if (fiber) {
-    yard_adder_lines.push({
-      label: "Fiber reinforcement",
-      qty_yd: billed,
-      rate: PRICES.per_yard_upcharges.fiber,
-      total: billed * PRICES.per_yard_upcharges.fiber
-    });
-  }
-  if (rebar) {
-    yard_adder_lines.push({
-      label: "Rebar reinforcement",
-      qty_yd: billed,
-      rate: PRICES.per_yard_upcharges.rebar,
-      total: billed * PRICES.per_yard_upcharges.rebar
-    });
-  }
-  if (moisture) {
-    yard_adder_lines.push({
-      label: "Moisture barrier",
-      qty_yd: billed,
-      rate: PRICES.per_yard_upcharges.moisture_barrier,
-      total: billed * PRICES.per_yard_upcharges.moisture_barrier
-    });
-  }
-  const yard_adders_subtotal = yard_adder_lines.reduce((s, l) => s + l.total, 0);
+  // Concrete portion — only computed when L and W are both positive.
+  // When skipped, all concrete-side fields are zeroed/empty so the UI can
+  // simply hide those sections.
+  let dims = null;
+  let base_lines = [];
+  let base_cost = 0;
+  let base_floor_applied = false;
+  let yard_adder_lines = [];
+  let yard_adders_subtotal = 0;
+  let flat_adder_lines = [];
+  let flat_adders_subtotal = 0;
 
-  const flat_adder_lines = [];
-  if (pump) {
-    flat_adder_lines.push({ label: "Pump truck", total: PRICES.flat_upcharges.pump_truck });
+  if (has_concrete) {
+    dims = computeYards({ L_ft, W_ft, T_in });
+    const billed = dims.billed_yards;
+
+    const base = computeBaseCost(dims.sqft, T_in, finish);
+    base_lines = base.lines;
+    base_cost = base.total;
+    base_floor_applied = base.floor_applied;
+
+    if (fiber) {
+      yard_adder_lines.push({
+        label: "Fiber reinforcement",
+        qty_yd: billed,
+        rate: PRICES.per_yard_upcharges.fiber,
+        total: billed * PRICES.per_yard_upcharges.fiber
+      });
+    }
+    if (rebar) {
+      yard_adder_lines.push({
+        label: "Rebar reinforcement",
+        qty_yd: billed,
+        rate: PRICES.per_yard_upcharges.rebar,
+        total: billed * PRICES.per_yard_upcharges.rebar
+      });
+    }
+    if (moisture) {
+      yard_adder_lines.push({
+        label: "Moisture barrier",
+        qty_yd: billed,
+        rate: PRICES.per_yard_upcharges.moisture_barrier,
+        total: billed * PRICES.per_yard_upcharges.moisture_barrier
+      });
+    }
+    yard_adders_subtotal = yard_adder_lines.reduce((s, l) => s + l.total, 0);
+
+    if (pump) {
+      flat_adder_lines.push({ label: "Pump truck", total: PRICES.flat_upcharges.pump_truck });
+    }
+    if (grading) {
+      flat_adder_lines.push({ label: "Grading for dirt backfill", total: PRICES.flat_upcharges.grading_for_backfill });
+    }
+    flat_adders_subtotal = flat_adder_lines.reduce((s, l) => s + l.total, 0);
   }
-  if (grading) {
-    flat_adder_lines.push({ label: "Grading for dirt backfill", total: PRICES.flat_upcharges.grading_for_backfill });
-  }
-  const flat_adders_subtotal = flat_adder_lines.reduce((s, l) => s + l.total, 0);
 
   const coatings = computeCoatings(coating_sqft, border_lf);
 
-  const total_cost   = base.total + yard_adders_subtotal + flat_adders_subtotal + coatings.total;
+  const total_cost   = base_cost + yard_adders_subtotal + flat_adders_subtotal + coatings.total;
   const markup_amount = total_cost * PRICES.markup;
   const quote_price  = total_cost + markup_amount;
 
   return {
+    has_concrete,
     dims,
-    base_lines: base.lines,
-    base_cost: base.total,
-    base_floor_applied: base.floor_applied,
+    base_lines,
+    base_cost,
+    base_floor_applied,
     yard_adder_lines,
     yard_adders_subtotal,
     flat_adder_lines,
@@ -803,26 +822,38 @@ const FINISH_DISPLAY = {
 };
 
 function buildQuoteIncludesList(input) {
-  const items = [`${input.T_in}" ${FINISH_DISPLAY[input.finish]} pour`];
-  if (input.fiber)    items.push("Fiber reinforcement");
-  if (input.rebar)    items.push("Rebar reinforcement");
-  if (input.moisture) items.push("Moisture barrier");
-  if (input.pump)     items.push("Pump truck");
-  if (input.grading)  items.push("Grading / dirt backfill");
+  const items = [];
+  const has_concrete = input.L_ft > 0 && input.W_ft > 0;
+  if (has_concrete) {
+    items.push(`${input.T_in}" ${FINISH_DISPLAY[input.finish]} pour`);
+    if (input.fiber)    items.push("Fiber reinforcement");
+    if (input.rebar)    items.push("Rebar reinforcement");
+    if (input.moisture) items.push("Moisture barrier");
+    if (input.pump)     items.push("Pump truck");
+    if (input.grading)  items.push("Grading / dirt backfill");
+  }
   if (input.coating_sqft > 0) items.push(`Decorative concrete coating (${input.coating_sqft} sqft)`);
   if (input.border_lf > 0)    items.push(`Coating border (${input.border_lf} LF)`);
   return items;
 }
 
 function renderQuote(q, input) {
-  const L = $("L_ft").value;
-  const W = $("W_ft").value;
-
-  const summary =
-    `<div class="quote-summary">` +
-      `${L}′ × ${W}′ × ${input.T_in}″ concrete slab` +
-      `<span class="sqft">${q.dims.sqft.toFixed(0)} sqft</span>` +
-    `</div>`;
+  let summary = "";
+  if (q.has_concrete) {
+    const L = $("L_ft").value;
+    const W = $("W_ft").value;
+    summary =
+      `<div class="quote-summary">` +
+        `${L}′ × ${W}′ × ${input.T_in}″ concrete slab` +
+        `<span class="sqft">${q.dims.sqft.toFixed(0)} sqft</span>` +
+      `</div>`;
+  } else if (input.coating_sqft > 0 || input.border_lf > 0) {
+    summary =
+      `<div class="quote-summary">` +
+        `Decorative concrete coating` +
+        `<span class="sqft">SunDek of Charlotte</span>` +
+      `</div>`;
+  }
 
   const items = buildQuoteIncludesList(input).map(label =>
     `<li>${label}</li>`
@@ -851,16 +882,16 @@ function bomLine(label, qty, rate, total) {
 }
 
 function renderCost(q, input) {
-  const dimsLine =
+  const dimsLine = !q.has_concrete ? "" :
     `<div class="bom-section">` +
       `<div class="bom-line"><span class="label">${$("L_ft").value}′ × ${$("W_ft").value}′ × ${input.T_in}″</span><span></span><span></span><span class="total">${q.dims.sqft.toFixed(0)} sqft</span></div>` +
       `<div class="bom-line"><span class="label">Concrete (raw → waste → billed)</span><span></span><span></span><span class="total">${q.dims.raw_cuyd.toFixed(2)} → ${q.dims.waste_yards} → ${q.dims.billed_yards} yd</span></div>` +
     `</div>`;
 
-  // Base pour breakdown
+  // Base pour breakdown — only when there's a slab
   const baseLineHtml = q.base_lines.map(l => bomLine(l.label, "", "", l.total)).join("");
   const showBaseSubtotal = q.base_lines.length > 1;
-  const baseBlock =
+  const baseBlock = q.base_lines.length === 0 ? "" :
     `<div class="bom-section">` +
       `<h2>Base Pour</h2>` +
       baseLineHtml +
@@ -924,14 +955,24 @@ function renderCost(q, input) {
 
 function recompute() {
   const input = readForm();
-  if (!(input.L_ft > 0) || !(input.W_ft > 0)) {
+  const has_concrete = input.L_ft > 0 && input.W_ft > 0;
+  const has_coatings = input.coating_sqft > 0 || input.border_lf > 0;
+
+  if (!has_concrete && !has_coatings) {
     $("readouts").innerHTML = "";
-    $("quote-panel").innerHTML = `<div class="bom-placeholder">Enter dimensions to see quote.</div>`;
-    $("cost-panel").innerHTML = `<div class="bom-placeholder">Enter dimensions to see cost breakdown.</div>`;
+    $("quote-panel").innerHTML = `<div class="bom-placeholder">Enter slab dimensions or coatings to see quote.</div>`;
+    $("cost-panel").innerHTML = `<div class="bom-placeholder">Enter slab dimensions or coatings to see cost breakdown.</div>`;
     return;
   }
+
   const q = computeQuote(input);
-  renderReadouts(q.dims);
+
+  if (q.has_concrete) {
+    renderReadouts(q.dims);
+  } else {
+    $("readouts").innerHTML = "";
+  }
+
   renderQuote(q, input);
   renderCost(q, input);
 }
