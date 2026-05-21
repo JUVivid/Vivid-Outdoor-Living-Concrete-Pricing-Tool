@@ -1,0 +1,994 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vivid Outdoor Living — Concrete Takeoff Tool</title>
+  <style>
+/* ═══════════════════════════════════════════════════════════
+   Vivid Outdoor Living — Concrete Takeoff Tool
+   Editorial-luxury aesthetic: obsidian · bone parchment · gold
+   Typography: Cormorant Garamond (display) + Jost (interface)
+   ═══════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=Jost:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --black:        #0a0908;
+  --charcoal:     #141312;
+  --bone:         #f4ede0;
+  --bone-soft:    #d8cfb9;
+  --bone-dim:     #9a9183;
+  --bone-mute:    #6b655b;
+  --gold:         #c9a961;
+  --gold-bright:  #d9bd7a;
+  --gold-deep:    #8e7438;
+  --line:         rgba(201, 169, 97, 0.22);
+  --line-strong:  rgba(201, 169, 97, 0.45);
+  --line-soft:    rgba(244, 237, 224, 0.08);
+  --error:        #b8443c;
+  --success:      #6b8f5a;
+  --serif:        'Cormorant Garamond', 'Times New Roman', serif;
+  --sans:         'Jost', system-ui, -apple-system, sans-serif;
+  --mono:         'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+
+body {
+  background-color: #ede0c4;
+  background-image:
+    radial-gradient(ellipse at 18% 22%, rgba(248, 240, 218, 0.7), transparent 55%),
+    radial-gradient(ellipse at 82% 78%, rgba(218, 198, 158, 0.45), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, rgba(243, 232, 208, 0.4), transparent 70%);
+  background-attachment: fixed;
+  color: #1a1410;
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 15px;
+  line-height: 1.55;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.07;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.18  0 0 0 0 0.13  0 0 0 0 0.06  0 0 0 0.85 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* Parchment scope (form pane), obsidian scope (header + BOM pane) */
+.form-pane {
+  --bone: #1a1410;
+  --bone-soft: #3d3024;
+  --bone-dim: #6b5a40;
+  --gold: #8e7438;
+  --line: rgba(108, 84, 36, 0.32);
+  color: #1a1410;
+}
+header, .bom-pane {
+  background: rgba(10, 9, 8, 0.92);
+  color: var(--bone);
+}
+
+/* Layout */
+.app {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  min-height: 100vh;
+}
+@media (min-width: 768px) {
+  .app {
+    grid-template-columns: 60fr 40fr;
+  }
+  .bom-pane { position: sticky; top: 86px; align-self: start; max-height: calc(100vh - 86px); overflow-y: auto; }
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 40px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line-soft);
+}
+header h1 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 22px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--bone);
+  line-height: 1;
+}
+header h1::first-letter { color: var(--gold); font-style: italic; }
+header p {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 500;
+}
+
+/* ── Form pane ──────────────────────────────────────────────── */
+.form-pane {
+  padding: 32px 40px;
+}
+.form-pane h2 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.form-pane h2 .section-sub {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: none;
+  color: var(--bone-dim);
+  margin-left: 10px;
+  font-style: italic;
+}
+.form-section { margin-bottom: 28px; }
+.field-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 120px; }
+.field label {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+  font-weight: 500;
+}
+.field input[type="number"] {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.4);
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--bone);
+  min-height: 44px;
+}
+.field input:focus { outline: none; border-color: var(--gold); }
+
+.choice-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  font-size: 13px;
+  min-height: 44px;
+  user-select: none;
+  background: rgba(255,255,255,0.25);
+}
+.choice input { margin: 0; accent-color: var(--gold-deep); }
+.choice.selected { background: rgba(201, 169, 97, 0.18); border-color: var(--gold); }
+
+.readouts {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  font-family: var(--mono);
+  font-size: 13px;
+  background: rgba(255,255,255,0.25);
+}
+.readouts .ro-row { display: flex; justify-content: space-between; padding: 2px 0; }
+.readouts .ro-row.minimum { color: var(--gold-deep); font-weight: 500; }
+
+/* ── BOM pane ──────────────────────────────────────────────── */
+.bom-pane { padding: 32px 40px; min-height: 100vh; }
+.bom-pane h2 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.bom-pane h2 .section-sub {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: none;
+  color: var(--bone-dim);
+  margin-left: 10px;
+  font-style: italic;
+}
+.bom-section { margin-bottom: 26px; }
+.bom-line {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 14px;
+  padding: 6px 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--bone);
+  align-items: baseline;
+}
+.bom-line .label { color: var(--bone-soft); }
+.bom-line .qty, .bom-line .rate { color: var(--bone-dim); font-size: 12px; }
+.bom-line .total { color: var(--bone); font-weight: 500; min-width: 90px; text-align: right; }
+
+.bom-subtotal {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--bone-soft);
+  font-family: var(--mono);
+}
+.minimum-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  margin-top: 6px;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.grand-total {
+  margin-top: 24px;
+  padding: 20px 24px;
+  border: 2px solid var(--gold);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--serif);
+}
+.grand-total .label {
+  font-size: 14px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.grand-total .value {
+  font-size: 32px;
+  font-weight: 500;
+  color: var(--bone);
+  font-family: var(--mono);
+}
+
+.bom-placeholder {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--bone-mute);
+  font-style: italic;
+  font-family: var(--serif);
+  font-size: 16px;
+}
+
+/* ── Tabs ──────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 12px 22px;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+  cursor: pointer;
+  min-height: 44px;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+.tab:hover { color: var(--bone-soft); }
+.tab.active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+.tab-panel[hidden] { display: none; }
+
+/* ── Quote view (customer-facing) ──────────────────────────── */
+.quote-summary {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--bone);
+  padding: 18px 0 6px;
+  letter-spacing: 0.02em;
+}
+.quote-summary .sqft {
+  display: block;
+  font-family: var(--mono);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--bone-dim);
+  letter-spacing: 0.1em;
+  margin-top: 4px;
+}
+.quote-includes-label {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 22px 0 10px;
+}
+.quote-includes {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+}
+.quote-includes li {
+  padding: 8px 0 8px 22px;
+  position: relative;
+  font-size: 14px;
+  color: var(--bone-soft);
+  border-bottom: 1px solid var(--line-soft);
+  font-family: var(--sans);
+}
+.quote-includes li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--gold);
+  background: transparent;
+}
+.quote-includes li:last-child { border-bottom: none; }
+
+/* ── Print ─────────────────────────────────────────────────── */
+@media print {
+  body { background: white; color: black; }
+  body::before { display: none; }
+  .form-pane, header, .tabs { display: none; }
+  .app { grid-template-columns: 1fr; }
+  .bom-pane { background: white; color: black; padding: 20px; position: static; max-height: none; overflow: visible; }
+  .bom-line .label, .bom-line .total { color: black; }
+  .bom-line .qty, .bom-line .rate { color: #444; }
+  .grand-total { border-color: black; }
+  .grand-total .label, .grand-total .value { color: black; }
+  .quote-summary, .quote-summary .sqft, .quote-includes li { color: black; }
+  .quote-includes-label { color: #555; }
+  .quote-includes li::before { border-color: black; }
+  .quote-includes li { border-bottom-color: #ccc; }
+}
+
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Concrete Takeoff Tool</h1>
+      <p>Flat slabs · Patios · Walkways</p>
+    </div>
+  </header>
+
+  <main class="app">
+    <section class="form-pane">
+
+      <div class="form-section">
+        <h2>Dimensions</h2>
+        <div class="field-row">
+          <div class="field">
+            <label for="L_ft">Length (ft)</label>
+            <input type="number" id="L_ft" min="0" step="0.5" value="20">
+          </div>
+          <div class="field">
+            <label for="W_ft">Width (ft)</label>
+            <input type="number" id="W_ft" min="0" step="0.5" value="30">
+          </div>
+          <div class="field">
+            <label>Thickness</label>
+            <div class="choice-row" id="thickness-row">
+              <label class="choice selected"><input type="radio" name="T_in" value="4" checked> 4″</label>
+              <label class="choice"><input type="radio" name="T_in" value="6"> 6″</label>
+            </div>
+          </div>
+        </div>
+        <div class="readouts" id="readouts">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h2>Finish</h2>
+        <div class="choice-row" id="finish-row">
+          <label class="choice selected"><input type="radio" name="finish" value="broom" checked> Broom</label>
+          <label class="choice"><input type="radio" name="finish" value="stained"> Stained</label>
+          <label class="choice"><input type="radio" name="finish" value="stamped"> Stamped</label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h2>Reinforcement</h2>
+        <div class="choice-row">
+          <label class="choice"><input type="checkbox" id="fiber"> Fiber</label>
+          <label class="choice"><input type="checkbox" id="rebar"> Rebar</label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h2>Adders</h2>
+        <div class="choice-row">
+          <label class="choice"><input type="checkbox" id="moisture"> Moisture barrier</label>
+          <label class="choice"><input type="checkbox" id="pump"> Pump truck</label>
+          <label class="choice"><input type="checkbox" id="grading"> Grading / dirt backfill</label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h2>Coatings <span class="section-sub">SunDek of Charlotte</span></h2>
+        <div class="field-row">
+          <div class="field">
+            <label for="coating_sqft">Coating area (sqft)</label>
+            <input type="number" id="coating_sqft" min="0" step="1" value="0">
+          </div>
+          <div class="field">
+            <label for="border_lf">Border length (LF)</label>
+            <input type="number" id="border_lf" min="0" step="1" value="0">
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <section class="bom-pane">
+      <nav class="tabs" role="tablist">
+        <button type="button" class="tab active" data-tab="quote" role="tab" aria-selected="true">Quote</button>
+        <button type="button" class="tab" data-tab="cost" role="tab" aria-selected="false">Cost</button>
+      </nav>
+
+      <div id="quote-panel" class="tab-panel active" role="tabpanel">
+        <div class="bom-placeholder">Enter dimensions to see quote.</div>
+      </div>
+
+      <div id="cost-panel" class="tab-panel" role="tabpanel" hidden>
+        <div class="bom-placeholder">Enter dimensions to see cost breakdown.</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+"use strict";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 1 — PRICES
+// ═══ Edit this block when prices change. One block retunes the whole tool. ═══
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PRICES = {
+  markup:           0.85,    // 85% markup applied to total cost → quote price
+  minimum_dollars:  3500,    // base-pour floor: covers up to 5 yd of concrete
+  minimum_yards:    5,       // per-yard adders bill on max(waste_yards, this)
+
+  // Broom-finish base cost (4" rates; 6" applies thickness multiplier)
+  broom: {
+    rate_5_to_20yd:  10,     // $/sqft for area above 5-yd threshold, up to 20-yd
+    rate_above_20yd: 8       // $/sqft for area above 20-yd threshold
+  },
+
+  // Stained / stamped: flat $/sqft (4" rates; 6" applies thickness multiplier)
+  // Subject to the $3,500 minimum, but no tier discount above 20 yd.
+  stained_rate: 13.50,
+  stamped_rate: 17.00,
+
+  // Thickness multiplier applies to ALL base-pour rates (broom/stained/stamped).
+  // 6" pour uses 1.5× concrete vs 4", so the per-sqft rate scales proportionally.
+  thickness_multipliers: { 4: 1.0, 6: 1.5 },
+
+  // Per-yard adders bill on max(waste_yards, minimum_yards) at these rates.
+  per_yard_upcharges: {
+    fiber:            100,
+    rebar:            100,
+    moisture_barrier: 100
+  },
+
+  // Flat adders billed once when selected.
+  flat_upcharges: {
+    pump_truck:           1200,
+    grading_for_backfill:  500
+  },
+
+  // Coatings — supplied by SunDek of Charlotte. Priced per-sqft for the
+  // coated area and per-LF for any decorative border. Independent of the
+  // slab dimensions in the main form (you may coat only part of a pour,
+  // or a previously-poured slab with no new concrete here).
+  coatings: {
+    rate_sqft:        7,     // $/sqft (contractor cost)
+    rate_lf:          8,     // $/LF for border
+    minimum_dollars:  2500   // floor if any coating is selected
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 2 — ENGINE (pure functions)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function computeYards({ L_ft, W_ft, T_in }) {
+  const sqft = L_ft * W_ft;
+  const perimeter_lf = 2 * (L_ft + W_ft);
+  const raw_cuyd = (L_ft * W_ft * (T_in / 12)) / 27;
+  const waste_yards = Math.ceil(raw_cuyd * 1.10);
+  const billed_yards = Math.max(waste_yards, PRICES.minimum_yards);
+  const minimum_applied = waste_yards < PRICES.minimum_yards;
+  return { sqft, perimeter_lf, raw_cuyd, waste_yards, billed_yards, minimum_applied };
+}
+
+const FINISH_LABELS = {
+  broom:   "broom-finish",
+  stained: "stained-finish",
+  stamped: "stamped-finish"
+};
+
+// Returns the sqft that 1 yard of concrete covers at a given thickness.
+// At 4": 81 sqft/yd. At 6": 54 sqft/yd. (27 cuft/yd ÷ (T_in/12) ft of depth.)
+function sqftPerYard(T_in) {
+  return 324 / T_in;
+}
+
+// Base-pour cost (concrete + finish labor). Returns { lines, total, floor_applied }.
+function computeBaseCost(sqft, T_in, finish) {
+  const mult = PRICES.thickness_multipliers[T_in] || 1.0;
+
+  if (finish === "broom") {
+    const sqft_5yd = 5  * sqftPerYard(T_in);
+    const sqft_20yd = 20 * sqftPerYard(T_in);
+    const rate_lo = PRICES.broom.rate_5_to_20yd * mult;
+    const rate_hi = PRICES.broom.rate_above_20yd * mult;
+
+    if (sqft <= sqft_5yd) {
+      return {
+        lines: [{
+          label: `${T_in}" broom — 5-yd minimum (covers up to ${sqft_5yd.toFixed(0)} sqft)`,
+          total: PRICES.minimum_dollars
+        }],
+        total: PRICES.minimum_dollars,
+        floor_applied: true
+      };
+    }
+    if (sqft <= sqft_20yd) {
+      const overage = sqft - sqft_5yd;
+      const overage_cost = overage * rate_lo;
+      return {
+        lines: [
+          { label: `${T_in}" broom — 5-yd minimum (first ${sqft_5yd.toFixed(0)} sqft)`, total: PRICES.minimum_dollars },
+          { label: `${T_in}" broom — ${overage.toFixed(0)} sqft × ${formatCurrency(rate_lo)}/sqft`, total: overage_cost }
+        ],
+        total: PRICES.minimum_dollars + overage_cost,
+        floor_applied: false
+      };
+    }
+    // Tier 3: above 20 yards
+    const tier2_sqft = sqft_20yd - sqft_5yd;
+    const tier3_sqft = sqft - sqft_20yd;
+    const tier2_cost = tier2_sqft * rate_lo;
+    const tier3_cost = tier3_sqft * rate_hi;
+    return {
+      lines: [
+        { label: `${T_in}" broom — 5-yd minimum (first ${sqft_5yd.toFixed(0)} sqft)`, total: PRICES.minimum_dollars },
+        { label: `${T_in}" broom — ${tier2_sqft.toFixed(0)} sqft × ${formatCurrency(rate_lo)}/sqft (5-20 yd)`, total: tier2_cost },
+        { label: `${T_in}" broom — ${tier3_sqft.toFixed(0)} sqft × ${formatCurrency(rate_hi)}/sqft (above 20 yd)`, total: tier3_cost }
+      ],
+      total: PRICES.minimum_dollars + tier2_cost + tier3_cost,
+      floor_applied: false
+    };
+  }
+
+  // Stained or stamped: flat $/sqft (with thickness multiplier), $3,500 minimum.
+  const base_rate = finish === "stained" ? PRICES.stained_rate : PRICES.stamped_rate;
+  const rate = base_rate * mult;
+  const raw = sqft * rate;
+  if (raw < PRICES.minimum_dollars) {
+    return {
+      lines: [{
+        label: `${T_in}" ${finish}-finish — 5-yd minimum (raw ${sqft} sqft × ${formatCurrency(rate)}/sqft = ${formatCurrency(raw)})`,
+        total: PRICES.minimum_dollars
+      }],
+      total: PRICES.minimum_dollars,
+      floor_applied: true
+    };
+  }
+  return {
+    lines: [{
+      label: `${T_in}" ${finish}-finish — ${sqft} sqft × ${formatCurrency(rate)}/sqft`,
+      total: raw
+    }],
+    total: raw,
+    floor_applied: false
+  };
+}
+
+// Returns { lines, raw_total, total, floor_applied } for the coatings block.
+// Returns empty (total: 0) if neither sqft nor LF was provided.
+function computeCoatings(coating_sqft, border_lf) {
+  const has_any = coating_sqft > 0 || border_lf > 0;
+  if (!has_any) {
+    return { lines: [], raw_total: 0, total: 0, floor_applied: false };
+  }
+  const lines = [];
+  let raw_total = 0;
+  if (coating_sqft > 0) {
+    const lineTotal = coating_sqft * PRICES.coatings.rate_sqft;
+    raw_total += lineTotal;
+    lines.push({
+      label: "Coating area",
+      qty: coating_sqft,
+      qty_unit: "sqft",
+      rate: PRICES.coatings.rate_sqft,
+      rate_unit: "sqft",
+      total: lineTotal
+    });
+  }
+  if (border_lf > 0) {
+    const lineTotal = border_lf * PRICES.coatings.rate_lf;
+    raw_total += lineTotal;
+    lines.push({
+      label: "Border",
+      qty: border_lf,
+      qty_unit: "LF",
+      rate: PRICES.coatings.rate_lf,
+      rate_unit: "LF",
+      total: lineTotal
+    });
+  }
+  const floor_applied = raw_total < PRICES.coatings.minimum_dollars;
+  const total = floor_applied ? PRICES.coatings.minimum_dollars : raw_total;
+  return { lines, raw_total, total, floor_applied };
+}
+
+function computeQuote(input) {
+  const { L_ft, W_ft, T_in, finish, fiber, rebar, moisture, pump, grading,
+          coating_sqft = 0, border_lf = 0 } = input;
+  const dims = computeYards({ L_ft, W_ft, T_in });
+  const billed = dims.billed_yards;
+
+  const base = computeBaseCost(dims.sqft, T_in, finish);
+
+  const yard_adder_lines = [];
+  if (fiber) {
+    yard_adder_lines.push({
+      label: "Fiber reinforcement",
+      qty_yd: billed,
+      rate: PRICES.per_yard_upcharges.fiber,
+      total: billed * PRICES.per_yard_upcharges.fiber
+    });
+  }
+  if (rebar) {
+    yard_adder_lines.push({
+      label: "Rebar reinforcement",
+      qty_yd: billed,
+      rate: PRICES.per_yard_upcharges.rebar,
+      total: billed * PRICES.per_yard_upcharges.rebar
+    });
+  }
+  if (moisture) {
+    yard_adder_lines.push({
+      label: "Moisture barrier",
+      qty_yd: billed,
+      rate: PRICES.per_yard_upcharges.moisture_barrier,
+      total: billed * PRICES.per_yard_upcharges.moisture_barrier
+    });
+  }
+  const yard_adders_subtotal = yard_adder_lines.reduce((s, l) => s + l.total, 0);
+
+  const flat_adder_lines = [];
+  if (pump) {
+    flat_adder_lines.push({ label: "Pump truck", total: PRICES.flat_upcharges.pump_truck });
+  }
+  if (grading) {
+    flat_adder_lines.push({ label: "Grading for dirt backfill", total: PRICES.flat_upcharges.grading_for_backfill });
+  }
+  const flat_adders_subtotal = flat_adder_lines.reduce((s, l) => s + l.total, 0);
+
+  const coatings = computeCoatings(coating_sqft, border_lf);
+
+  const total_cost   = base.total + yard_adders_subtotal + flat_adders_subtotal + coatings.total;
+  const markup_amount = total_cost * PRICES.markup;
+  const quote_price  = total_cost + markup_amount;
+
+  return {
+    dims,
+    base_lines: base.lines,
+    base_cost: base.total,
+    base_floor_applied: base.floor_applied,
+    yard_adder_lines,
+    yard_adders_subtotal,
+    flat_adder_lines,
+    flat_adders_subtotal,
+    coating_lines: coatings.lines,
+    coatings_raw_subtotal: coatings.raw_total,
+    coatings_subtotal: coatings.total,
+    coatings_floor_applied: coatings.floor_applied,
+    total_cost,
+    markup_pct: PRICES.markup,
+    markup_amount,
+    quote_price
+  };
+}
+
+function formatCurrency(n) {
+  return "$" + n.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+// Expose for browser-console debugging
+if (typeof window !== "undefined") {
+  window.PRICES = PRICES;
+  window.computeYards = computeYards;
+  window.computeBaseCost = computeBaseCost;
+  window.computeCoatings = computeCoatings;
+  window.computeQuote = computeQuote;
+  window.formatCurrency = formatCurrency;
+  window.FINISH_LABELS = FINISH_LABELS;
+  window.sqftPerYard = sqftPerYard;
+}
+
+</script>
+  <script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+const $$ = (sel) => document.querySelectorAll(sel);
+
+function readForm() {
+  const L_ft = parseFloat($("L_ft").value);
+  const W_ft = parseFloat($("W_ft").value);
+  const T_in = parseInt(document.querySelector('input[name="T_in"]:checked')?.value || "4", 10);
+  const finish = document.querySelector('input[name="finish"]:checked').value;
+  const coating_sqft = parseFloat($("coating_sqft").value) || 0;
+  const border_lf    = parseFloat($("border_lf").value)    || 0;
+  return {
+    L_ft, W_ft, T_in, finish,
+    fiber:    $("fiber").checked,
+    rebar:    $("rebar").checked,
+    moisture: $("moisture").checked,
+    pump:     $("pump").checked,
+    grading:  $("grading").checked,
+    coating_sqft, border_lf
+  };
+}
+
+function renderReadouts(dims) {
+  const el = $("readouts");
+  el.innerHTML =
+    `<div class="ro-row"><span>Area</span><span>${dims.sqft.toFixed(0)} sqft</span></div>` +
+    `<div class="ro-row"><span>Perimeter</span><span>${dims.perimeter_lf.toFixed(0)} LF</span></div>` +
+    `<div class="ro-row"><span>Concrete (raw)</span><span>${dims.raw_cuyd.toFixed(2)} cu yd</span></div>` +
+    `<div class="ro-row"><span>Concrete (after 10% waste)</span><span>${dims.waste_yards} yd</span></div>` +
+    `<div class="ro-row ${dims.minimum_applied ? "minimum" : ""}"><span>Concrete (billed)</span><span>${dims.billed_yards} yd${dims.minimum_applied ? " — 5-yd min" : ""}</span></div>`;
+}
+
+// Friendly labels for the Quote tab "Includes" list.
+const FINISH_DISPLAY = {
+  broom:   "broom-finish",
+  stained: "stained-finish",
+  stamped: "stamped-finish"
+};
+
+function buildQuoteIncludesList(input) {
+  const items = [`${input.T_in}" ${FINISH_DISPLAY[input.finish]} pour`];
+  if (input.fiber)    items.push("Fiber reinforcement");
+  if (input.rebar)    items.push("Rebar reinforcement");
+  if (input.moisture) items.push("Moisture barrier");
+  if (input.pump)     items.push("Pump truck");
+  if (input.grading)  items.push("Grading / dirt backfill");
+  if (input.coating_sqft > 0) items.push(`Decorative concrete coating (${input.coating_sqft} sqft)`);
+  if (input.border_lf > 0)    items.push(`Coating border (${input.border_lf} LF)`);
+  return items;
+}
+
+function renderQuote(q, input) {
+  const L = $("L_ft").value;
+  const W = $("W_ft").value;
+
+  const summary =
+    `<div class="quote-summary">` +
+      `${L}′ × ${W}′ × ${input.T_in}″ concrete slab` +
+      `<span class="sqft">${q.dims.sqft.toFixed(0)} sqft</span>` +
+    `</div>`;
+
+  const items = buildQuoteIncludesList(input).map(label =>
+    `<li>${label}</li>`
+  ).join("");
+
+  const includes =
+    `<div class="quote-includes-label">Includes</div>` +
+    `<ul class="quote-includes">${items}</ul>`;
+
+  const total =
+    `<div class="grand-total">` +
+      `<span class="label">Total</span>` +
+      `<span class="value">${formatCurrency(q.quote_price)}</span>` +
+    `</div>`;
+
+  $("quote-panel").innerHTML = summary + includes + total;
+}
+
+function bomLine(label, qty, rate, total) {
+  return `<div class="bom-line">` +
+    `<span class="label">${label}</span>` +
+    `<span class="qty">${qty || ""}</span>` +
+    `<span class="rate">${rate || ""}</span>` +
+    `<span class="total">${formatCurrency(total)}</span>` +
+  `</div>`;
+}
+
+function renderCost(q, input) {
+  const dimsLine =
+    `<div class="bom-section">` +
+      `<div class="bom-line"><span class="label">${$("L_ft").value}′ × ${$("W_ft").value}′ × ${input.T_in}″</span><span></span><span></span><span class="total">${q.dims.sqft.toFixed(0)} sqft</span></div>` +
+      `<div class="bom-line"><span class="label">Concrete (raw → waste → billed)</span><span></span><span></span><span class="total">${q.dims.raw_cuyd.toFixed(2)} → ${q.dims.waste_yards} → ${q.dims.billed_yards} yd</span></div>` +
+    `</div>`;
+
+  // Base pour breakdown
+  const baseLineHtml = q.base_lines.map(l => bomLine(l.label, "", "", l.total)).join("");
+  const showBaseSubtotal = q.base_lines.length > 1;
+  const baseBlock =
+    `<div class="bom-section">` +
+      `<h2>Base Pour</h2>` +
+      baseLineHtml +
+      (showBaseSubtotal
+        ? `<div class="bom-subtotal"><span>Base subtotal</span><span>${formatCurrency(q.base_cost)}</span></div>`
+        : "") +
+      (q.base_floor_applied
+        ? `<div class="minimum-badge">$3,500 minimum applied (small pour)</div>`
+        : "") +
+    `</div>`;
+
+  // Per-yard adders
+  const yardAdderBlock = q.yard_adder_lines.length === 0 ? "" :
+    `<div class="bom-section">` +
+      `<h2>Per-Yard Adders</h2>` +
+      q.yard_adder_lines.map(l =>
+        bomLine(l.label, `${l.qty_yd} yd`, `× ${formatCurrency(l.rate)}/yd`, l.total)
+      ).join("") +
+      `<div class="bom-subtotal"><span>Yard adders subtotal</span><span>${formatCurrency(q.yard_adders_subtotal)}</span></div>` +
+      (q.dims.minimum_applied
+        ? `<div class="minimum-badge">5-yard minimum applied to adders (pour needs ${q.dims.waste_yards} yd; billed ${q.dims.billed_yards})</div>`
+        : "") +
+    `</div>`;
+
+  // Flat adders
+  const flatAdderBlock = q.flat_adder_lines.length === 0 ? "" :
+    `<div class="bom-section">` +
+      `<h2>Flat Adders</h2>` +
+      q.flat_adder_lines.map(l => bomLine(l.label, "", "", l.total)).join("") +
+      `<div class="bom-subtotal"><span>Flat adders subtotal</span><span>${formatCurrency(q.flat_adders_subtotal)}</span></div>` +
+    `</div>`;
+
+  // Coatings (SunDek of Charlotte)
+  const coatingsBlock = q.coating_lines.length === 0 ? "" :
+    `<div class="bom-section">` +
+      `<h2>Coatings <span class="section-sub">SunDek of Charlotte</span></h2>` +
+      q.coating_lines.map(l =>
+        bomLine(l.label, `${l.qty} ${l.qty_unit}`, `× ${formatCurrency(l.rate)}/${l.rate_unit}`, l.total)
+      ).join("") +
+      `<div class="bom-subtotal"><span>Coatings subtotal</span><span>${formatCurrency(q.coatings_subtotal)}</span></div>` +
+      (q.coatings_floor_applied
+        ? `<div class="minimum-badge">$2,500 coatings minimum applied (raw ${formatCurrency(q.coatings_raw_subtotal)})</div>`
+        : "") +
+    `</div>`;
+
+  // Totals: cost, markup, quote
+  const totalsBlock =
+    `<div class="bom-section">` +
+      `<div class="bom-line"><span class="label">Total cost</span><span></span><span></span><span class="total">${formatCurrency(q.total_cost)}</span></div>` +
+      `<div class="bom-line"><span class="label">Markup (${(q.markup_pct * 100).toFixed(0)}%)</span><span></span><span></span><span class="total">${formatCurrency(q.markup_amount)}</span></div>` +
+    `</div>`;
+
+  const grand =
+    `<div class="grand-total">` +
+      `<span class="label">Quote Price</span>` +
+      `<span class="value">${formatCurrency(q.quote_price)}</span>` +
+    `</div>`;
+
+  $("cost-panel").innerHTML = dimsLine + baseBlock + yardAdderBlock + flatAdderBlock + coatingsBlock + totalsBlock + grand;
+}
+
+function recompute() {
+  const input = readForm();
+  if (!(input.L_ft > 0) || !(input.W_ft > 0)) {
+    $("readouts").innerHTML = "";
+    $("quote-panel").innerHTML = `<div class="bom-placeholder">Enter dimensions to see quote.</div>`;
+    $("cost-panel").innerHTML = `<div class="bom-placeholder">Enter dimensions to see cost breakdown.</div>`;
+    return;
+  }
+  const q = computeQuote(input);
+  renderReadouts(q.dims);
+  renderQuote(q, input);
+  renderCost(q, input);
+}
+
+function activateTab(name) {
+  $$(".tab").forEach(t => {
+    const isActive = t.dataset.tab === name;
+    t.classList.toggle("active", isActive);
+    t.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+  $$(".tab-panel").forEach(p => {
+    const isActive = p.id === `${name}-panel`;
+    p.classList.toggle("active", isActive);
+    if (isActive) p.removeAttribute("hidden");
+    else p.setAttribute("hidden", "");
+  });
+}
+
+function syncChoiceClasses() {
+  $$(".choice input").forEach(inp => {
+    const label = inp.closest(".choice");
+    if (inp.type === "radio") {
+      const group = document.getElementsByName(inp.name);
+      group.forEach(r => r.closest(".choice").classList.toggle("selected", r.checked));
+    } else {
+      label.classList.toggle("selected", inp.checked);
+    }
+  });
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+const debouncedRecompute = debounce(recompute, 200);
+
+document.addEventListener("input", () => {
+  syncChoiceClasses();
+  debouncedRecompute();
+});
+document.addEventListener("change", () => {
+  syncChoiceClasses();
+  recompute();
+});
+
+// Tab switching
+document.addEventListener("click", (e) => {
+  const tab = e.target.closest(".tab");
+  if (tab) activateTab(tab.dataset.tab);
+});
+
+// Initial render
+syncChoiceClasses();
+recompute();
+
+</script>
+</body>
+</html>
+
