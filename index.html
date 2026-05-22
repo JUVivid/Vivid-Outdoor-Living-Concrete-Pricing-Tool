@@ -499,14 +499,19 @@ header p {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const PRICES = {
-  markup:           0.20,    // 20% markup applied to total cost → quote price
-  minimum_dollars:  3500,    // base-pour floor: covers up to 5 yd of concrete
-  minimum_yards:    5,       // per-yard adders bill on max(waste_yards, this)
+  markup_concrete: 0.35,     // 35% markup on the concrete portion (slab + adders)
+  markup_coatings: 0.20,     // 20% markup on the coatings portion
+  minimum_dollars: 3500,     // tier-1 broom flat charge (covers up to 5 yd)
+  minimum_yards:   5,        // per-yard adders bill on max(waste_yards, this)
 
-  // Broom-finish base cost (4" rates; 6" applies thickness multiplier)
+  // Broom-finish base cost — BLANKET pricing per tier (not marginal):
+  //   Tier 1 (≤ 5 yd):    flat $3,500 (covers the whole pour)
+  //   Tier 2 (5-20 yd):   ALL sqft × $10  (the $3,500 disappears)
+  //   Tier 3 (> 20 yd):   ALL sqft × $8   (lower rate at scale)
+  // 4" rates; 6" applies the thickness multiplier.
   broom: {
-    rate_5_to_20yd:  10,     // $/sqft for area above 5-yd threshold, up to 20-yd
-    rate_above_20yd: 8       // $/sqft for area above 20-yd threshold
+    rate_5_to_20yd:  10,     // $/sqft, blanket on the whole pour in tier 2
+    rate_above_20yd: 8       // $/sqft, blanket on the whole pour in tier 3
   },
 
   // Stained / stamped: flat $/sqft (4" rates; 6" applies thickness multiplier)
@@ -576,11 +581,12 @@ function computeBaseCost(sqft, T_in, finish) {
   const mult = PRICES.thickness_multipliers[T_in] || 1.0;
 
   if (finish === "broom") {
-    const sqft_5yd = 5  * sqftPerYard(T_in);
+    const sqft_5yd  = 5  * sqftPerYard(T_in);
     const sqft_20yd = 20 * sqftPerYard(T_in);
-    const rate_lo = PRICES.broom.rate_5_to_20yd * mult;
-    const rate_hi = PRICES.broom.rate_above_20yd * mult;
+    const rate_lo = PRICES.broom.rate_5_to_20yd * mult;   // $/sqft 5-20 yd
+    const rate_hi = PRICES.broom.rate_above_20yd * mult;  // $/sqft >20 yd
 
+    // Tier 1: ≤ 5 yd → flat $3,500 covers the whole pour.
     if (sqft <= sqft_5yd) {
       return {
         lines: [{
@@ -591,30 +597,26 @@ function computeBaseCost(sqft, T_in, finish) {
         floor_applied: true
       };
     }
+    // Tier 2: 5-20 yd → ALL sqft × rate_lo (blanket; no $3,500 baseline).
     if (sqft <= sqft_20yd) {
-      const overage = sqft - sqft_5yd;
-      const overage_cost = overage * rate_lo;
+      const cost = sqft * rate_lo;
       return {
-        lines: [
-          { label: `${T_in}" broom — 5-yd minimum (first ${sqft_5yd.toFixed(0)} sqft)`, total: PRICES.minimum_dollars },
-          { label: `${T_in}" broom — ${overage.toFixed(0)} sqft × ${formatCurrency(rate_lo)}/sqft`, total: overage_cost }
-        ],
-        total: PRICES.minimum_dollars + overage_cost,
+        lines: [{
+          label: `${T_in}" broom — ${sqft} sqft × ${formatCurrency(rate_lo)}/sqft (5-20 yd tier)`,
+          total: cost
+        }],
+        total: cost,
         floor_applied: false
       };
     }
-    // Tier 3: above 20 yards
-    const tier2_sqft = sqft_20yd - sqft_5yd;
-    const tier3_sqft = sqft - sqft_20yd;
-    const tier2_cost = tier2_sqft * rate_lo;
-    const tier3_cost = tier3_sqft * rate_hi;
+    // Tier 3: > 20 yd → ALL sqft × rate_hi (blanket; lower rate at scale).
+    const cost = sqft * rate_hi;
     return {
-      lines: [
-        { label: `${T_in}" broom — 5-yd minimum (first ${sqft_5yd.toFixed(0)} sqft)`, total: PRICES.minimum_dollars },
-        { label: `${T_in}" broom — ${tier2_sqft.toFixed(0)} sqft × ${formatCurrency(rate_lo)}/sqft (5-20 yd)`, total: tier2_cost },
-        { label: `${T_in}" broom — ${tier3_sqft.toFixed(0)} sqft × ${formatCurrency(rate_hi)}/sqft (above 20 yd)`, total: tier3_cost }
-      ],
-      total: PRICES.minimum_dollars + tier2_cost + tier3_cost,
+      lines: [{
+        label: `${T_in}" broom — ${sqft} sqft × ${formatCurrency(rate_hi)}/sqft (above 20 yd tier)`,
+        total: cost
+      }],
+      total: cost,
       floor_applied: false
     };
   }
@@ -741,9 +743,17 @@ function computeQuote(input) {
     coating_sqft, border_lf, scoreline_sqft, pattern, removal
   });
 
-  const total_cost   = base_cost + yard_adders_subtotal + flat_adders_subtotal + coatings.total;
-  const markup_amount = total_cost * PRICES.markup;
-  const quote_price  = total_cost + markup_amount;
+  // Markups are applied separately to the concrete and coatings portions.
+  // total_cost is the contractor's combined cost; quote_price is what the
+  // customer pays after each portion is marked up at its own rate.
+  const concrete_cost = base_cost + yard_adders_subtotal + flat_adders_subtotal;
+  const coatings_cost = coatings.total;
+  const total_cost    = concrete_cost + coatings_cost;
+
+  const concrete_markup_amount = concrete_cost * PRICES.markup_concrete;
+  const coatings_markup_amount = coatings_cost * PRICES.markup_coatings;
+  const markup_amount = concrete_markup_amount + coatings_markup_amount;
+  const quote_price   = total_cost + markup_amount;
 
   return {
     has_concrete,
@@ -759,8 +769,13 @@ function computeQuote(input) {
     coatings_raw_subtotal: coatings.raw_total,
     coatings_subtotal: coatings.total,
     coatings_floor_applied: coatings.floor_applied,
+    concrete_cost,
+    coatings_cost,
+    concrete_markup_pct: PRICES.markup_concrete,
+    coatings_markup_pct: PRICES.markup_coatings,
+    concrete_markup_amount,
+    coatings_markup_amount,
     total_cost,
-    markup_pct: PRICES.markup,
     markup_amount,
     quote_price
   };
@@ -948,12 +963,21 @@ function renderCost(q, input) {
         : "") +
     `</div>`;
 
-  // Totals: cost, markup, quote
-  const totalsBlock =
-    `<div class="bom-section">` +
-      `<div class="bom-line"><span class="label">Total cost</span><span></span><span></span><span class="total">${formatCurrency(q.total_cost)}</span></div>` +
-      `<div class="bom-line"><span class="label">Markup (${(q.markup_pct * 100).toFixed(0)}%)</span><span></span><span></span><span class="total">${formatCurrency(q.markup_amount)}</span></div>` +
-    `</div>`;
+  // Totals: cost + split markup (concrete 35%, coatings 20%) → quote
+  const totalsLines = [
+    `<div class="bom-line"><span class="label">Total cost</span><span></span><span></span><span class="total">${formatCurrency(q.total_cost)}</span></div>`
+  ];
+  if (q.concrete_cost > 0) {
+    totalsLines.push(
+      `<div class="bom-line"><span class="label">Concrete markup (${(q.concrete_markup_pct * 100).toFixed(0)}%)</span><span></span><span></span><span class="total">${formatCurrency(q.concrete_markup_amount)}</span></div>`
+    );
+  }
+  if (q.coatings_cost > 0) {
+    totalsLines.push(
+      `<div class="bom-line"><span class="label">Coatings markup (${(q.coatings_markup_pct * 100).toFixed(0)}%)</span><span></span><span></span><span class="total">${formatCurrency(q.coatings_markup_amount)}</span></div>`
+    );
+  }
+  const totalsBlock = `<div class="bom-section">${totalsLines.join("")}</div>`;
 
   const grand =
     `<div class="grand-total">` +
