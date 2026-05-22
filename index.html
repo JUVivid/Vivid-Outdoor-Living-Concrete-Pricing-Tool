@@ -150,6 +150,16 @@ header p {
   margin-left: 10px;
   font-style: italic;
 }
+.field-note {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--bone-dim);
+  margin-left: 6px;
+  font-style: italic;
+}
 .form-section { margin-bottom: 28px; }
 .field-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
 .field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 120px; }
@@ -405,12 +415,8 @@ header p {
         <h2>Dimensions</h2>
         <div class="field-row">
           <div class="field">
-            <label for="L_ft">Length (ft)</label>
-            <input type="number" id="L_ft" min="0" step="0.5" value="20">
-          </div>
-          <div class="field">
-            <label for="W_ft">Width (ft)</label>
-            <input type="number" id="W_ft" min="0" step="0.5" value="30">
+            <label for="sqft">Square footage (sqft)</label>
+            <input type="number" id="sqft" min="0" step="1" value="600">
           </div>
           <div class="field">
             <label>Thickness</label>
@@ -435,16 +441,9 @@ header p {
       </div>
 
       <div class="form-section">
-        <h2>Reinforcement</h2>
+        <h2>Adders <span class="section-sub">wire mesh standard in base</span></h2>
         <div class="choice-row">
-          <label class="choice"><input type="checkbox" id="fiber"> Fiber</label>
           <label class="choice"><input type="checkbox" id="rebar"> Rebar</label>
-        </div>
-      </div>
-
-      <div class="form-section">
-        <h2>Adders</h2>
-        <div class="choice-row">
           <label class="choice"><input type="checkbox" id="moisture"> Moisture barrier</label>
           <label class="choice"><input type="checkbox" id="pump"> Pump truck</label>
           <label class="choice"><input type="checkbox" id="grading"> Grading / dirt backfill</label>
@@ -459,9 +458,17 @@ header p {
             <input type="number" id="coating_sqft" min="0" step="1" value="0">
           </div>
           <div class="field">
-            <label for="border_lf">Border length (LF)</label>
+            <label for="border_lf">Border length (LF) <span class="field-note">up to 10″ thick</span></label>
             <input type="number" id="border_lf" min="0" step="1" value="0">
           </div>
+          <div class="field">
+            <label for="scoreline_sqft">Scoreline repair (sqft)</label>
+            <input type="number" id="scoreline_sqft" min="0" step="1" value="0">
+          </div>
+        </div>
+        <div class="choice-row">
+          <label class="choice"><input type="checkbox" id="pattern"> Brick / tile pattern</label>
+          <label class="choice"><input type="checkbox" id="removal"> Existing coating removal</label>
         </div>
       </div>
 
@@ -492,7 +499,7 @@ header p {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const PRICES = {
-  markup:           0.85,    // 85% markup applied to total cost → quote price
+  markup:           0.25,    // 25% markup applied to total cost → quote price
   minimum_dollars:  3500,    // base-pour floor: covers up to 5 yd of concrete
   minimum_yards:    5,       // per-yard adders bill on max(waste_yards, this)
 
@@ -512,8 +519,9 @@ const PRICES = {
   thickness_multipliers: { 4: 1.0, 6: 1.5 },
 
   // Per-yard adders bill on max(waste_yards, minimum_yards) at these rates.
+  // (Wire mesh is now standard and included in the base pour price — no
+  // upcharge. Fiber was removed; rebar moved to Adders alongside moisture.)
   per_yard_upcharges: {
-    fiber:            100,
     rebar:            100,
     moisture_barrier: 100
   },
@@ -529,9 +537,13 @@ const PRICES = {
   // slab dimensions in the main form (you may coat only part of a pour,
   // or a previously-poured slab with no new concrete here).
   coatings: {
-    rate_sqft:        7,     // $/sqft (contractor cost)
-    rate_lf:          8,     // $/LF for border
-    minimum_dollars:  2500   // floor if any coating is selected
+    rate_sqft:           7,     // $/sqft base coating (contractor cost)
+    rate_lf:             9,     // $/LF for border up to 10" thick
+    border_thickness_in: 10,    // rate above assumes border ≤ this thickness
+    rate_scoreline:      0.70,  // $/sqft scoreline repair for cracked concrete
+    rate_pattern:        5,     // $/sqft additional for brick/tile pattern
+    rate_removal:        3,     // $/sqft to grind out existing coating
+    minimum_dollars:     2500   // floor if any coating-section item is selected
   }
 };
 
@@ -539,14 +551,12 @@ const PRICES = {
 // SECTION 2 — ENGINE (pure functions)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function computeYards({ L_ft, W_ft, T_in }) {
-  const sqft = L_ft * W_ft;
-  const perimeter_lf = 2 * (L_ft + W_ft);
-  const raw_cuyd = (L_ft * W_ft * (T_in / 12)) / 27;
+function computeYards({ sqft, T_in }) {
+  const raw_cuyd = (sqft * (T_in / 12)) / 27;
   const waste_yards = Math.ceil(raw_cuyd * 1.10);
   const billed_yards = Math.max(waste_yards, PRICES.minimum_yards);
   const minimum_applied = waste_yards < PRICES.minimum_yards;
-  return { sqft, perimeter_lf, raw_cuyd, waste_yards, billed_yards, minimum_applied };
+  return { sqft, raw_cuyd, waste_yards, billed_yards, minimum_applied };
 }
 
 const FINISH_LABELS = {
@@ -634,48 +644,50 @@ function computeBaseCost(sqft, T_in, finish) {
 }
 
 // Returns { lines, raw_total, total, floor_applied } for the coatings block.
-// Returns empty (total: 0) if neither sqft nor LF was provided.
-function computeCoatings(coating_sqft, border_lf) {
-  const has_any = coating_sqft > 0 || border_lf > 0;
+// Returns empty (total: 0) if no coating-section item was provided.
+//
+// `pattern` and `removal` are booleans that apply to the full coating area
+// (coating_sqft). If coating_sqft is 0 they contribute nothing — there's no
+// area to pattern or grind out.
+function computeCoatings(opts) {
+  const {
+    coating_sqft   = 0,
+    border_lf      = 0,
+    scoreline_sqft = 0,
+    pattern        = false,
+    removal        = false
+  } = opts;
+  const pattern_sqft = (pattern && coating_sqft > 0) ? coating_sqft : 0;
+  const removal_sqft = (removal && coating_sqft > 0) ? coating_sqft : 0;
+  const has_any = coating_sqft > 0 || border_lf > 0 ||
+                  scoreline_sqft > 0 || pattern_sqft > 0 || removal_sqft > 0;
   if (!has_any) {
     return { lines: [], raw_total: 0, total: 0, floor_applied: false };
   }
   const lines = [];
   let raw_total = 0;
-  if (coating_sqft > 0) {
-    const lineTotal = coating_sqft * PRICES.coatings.rate_sqft;
-    raw_total += lineTotal;
-    lines.push({
-      label: "Coating area",
-      qty: coating_sqft,
-      qty_unit: "sqft",
-      rate: PRICES.coatings.rate_sqft,
-      rate_unit: "sqft",
-      total: lineTotal
-    });
+  function add(label, qty, qty_unit, rate, rate_unit) {
+    const total = qty * rate;
+    raw_total += total;
+    lines.push({ label, qty, qty_unit, rate, rate_unit, total });
   }
-  if (border_lf > 0) {
-    const lineTotal = border_lf * PRICES.coatings.rate_lf;
-    raw_total += lineTotal;
-    lines.push({
-      label: "Border",
-      qty: border_lf,
-      qty_unit: "LF",
-      rate: PRICES.coatings.rate_lf,
-      rate_unit: "LF",
-      total: lineTotal
-    });
-  }
+  if (coating_sqft > 0)   add("Coating area",              coating_sqft,   "sqft", PRICES.coatings.rate_sqft,      "sqft");
+  if (border_lf > 0)      add("Border (up to 10\" thick)", border_lf,      "LF",   PRICES.coatings.rate_lf,        "LF");
+  if (scoreline_sqft > 0) add("Scoreline repair",          scoreline_sqft, "sqft", PRICES.coatings.rate_scoreline, "sqft");
+  if (pattern_sqft > 0)   add("Brick/tile pattern",        pattern_sqft,   "sqft", PRICES.coatings.rate_pattern,   "sqft");
+  if (removal_sqft > 0)   add("Existing coating removal",  removal_sqft,   "sqft", PRICES.coatings.rate_removal,   "sqft");
+
   const floor_applied = raw_total < PRICES.coatings.minimum_dollars;
   const total = floor_applied ? PRICES.coatings.minimum_dollars : raw_total;
   return { lines, raw_total, total, floor_applied };
 }
 
 function computeQuote(input) {
-  const { L_ft, W_ft, T_in, finish, fiber, rebar, moisture, pump, grading,
-          coating_sqft = 0, border_lf = 0 } = input;
+  const { sqft = 0, T_in, finish, rebar, moisture, pump, grading,
+          coating_sqft = 0, border_lf = 0, scoreline_sqft = 0,
+          pattern = false, removal = false } = input;
 
-  const has_concrete = L_ft > 0 && W_ft > 0;
+  const has_concrete = sqft > 0;
 
   // Concrete portion — only computed when L and W are both positive.
   // When skipped, all concrete-side fields are zeroed/empty so the UI can
@@ -690,7 +702,7 @@ function computeQuote(input) {
   let flat_adders_subtotal = 0;
 
   if (has_concrete) {
-    dims = computeYards({ L_ft, W_ft, T_in });
+    dims = computeYards({ sqft, T_in });
     const billed = dims.billed_yards;
 
     const base = computeBaseCost(dims.sqft, T_in, finish);
@@ -698,14 +710,6 @@ function computeQuote(input) {
     base_cost = base.total;
     base_floor_applied = base.floor_applied;
 
-    if (fiber) {
-      yard_adder_lines.push({
-        label: "Fiber reinforcement",
-        qty_yd: billed,
-        rate: PRICES.per_yard_upcharges.fiber,
-        total: billed * PRICES.per_yard_upcharges.fiber
-      });
-    }
     if (rebar) {
       yard_adder_lines.push({
         label: "Rebar reinforcement",
@@ -733,7 +737,9 @@ function computeQuote(input) {
     flat_adders_subtotal = flat_adder_lines.reduce((s, l) => s + l.total, 0);
   }
 
-  const coatings = computeCoatings(coating_sqft, border_lf);
+  const coatings = computeCoatings({
+    coating_sqft, border_lf, scoreline_sqft, pattern, removal
+  });
 
   const total_cost   = base_cost + yard_adders_subtotal + flat_adders_subtotal + coatings.total;
   const markup_amount = total_cost * PRICES.markup;
@@ -787,28 +793,27 @@ const $ = (id) => document.getElementById(id);
 const $$ = (sel) => document.querySelectorAll(sel);
 
 function readForm() {
-  const L_ft = parseFloat($("L_ft").value);
-  const W_ft = parseFloat($("W_ft").value);
+  const sqft = parseFloat($("sqft").value) || 0;
   const T_in = parseInt(document.querySelector('input[name="T_in"]:checked')?.value || "4", 10);
   const finish = document.querySelector('input[name="finish"]:checked').value;
-  const coating_sqft = parseFloat($("coating_sqft").value) || 0;
-  const border_lf    = parseFloat($("border_lf").value)    || 0;
+  const coating_sqft   = parseFloat($("coating_sqft").value)   || 0;
+  const border_lf      = parseFloat($("border_lf").value)      || 0;
+  const scoreline_sqft = parseFloat($("scoreline_sqft").value) || 0;
   return {
-    L_ft, W_ft, T_in, finish,
-    fiber:    $("fiber").checked,
+    sqft, T_in, finish,
     rebar:    $("rebar").checked,
     moisture: $("moisture").checked,
     pump:     $("pump").checked,
     grading:  $("grading").checked,
-    coating_sqft, border_lf
+    coating_sqft, border_lf, scoreline_sqft,
+    pattern:  $("pattern").checked,
+    removal:  $("removal").checked
   };
 }
 
 function renderReadouts(dims) {
   const el = $("readouts");
   el.innerHTML =
-    `<div class="ro-row"><span>Area</span><span>${dims.sqft.toFixed(0)} sqft</span></div>` +
-    `<div class="ro-row"><span>Perimeter</span><span>${dims.perimeter_lf.toFixed(0)} LF</span></div>` +
     `<div class="ro-row"><span>Concrete (raw)</span><span>${dims.raw_cuyd.toFixed(2)} cu yd</span></div>` +
     `<div class="ro-row"><span>Concrete (after 10% waste)</span><span>${dims.waste_yards} yd</span></div>` +
     `<div class="ro-row ${dims.minimum_applied ? "minimum" : ""}"><span>Concrete (billed)</span><span>${dims.billed_yards} yd${dims.minimum_applied ? " — 5-yd min" : ""}</span></div>`;
@@ -823,31 +828,37 @@ const FINISH_DISPLAY = {
 
 function buildQuoteIncludesList(input) {
   const items = [];
-  const has_concrete = input.L_ft > 0 && input.W_ft > 0;
+  const has_concrete = input.sqft > 0;
   if (has_concrete) {
     items.push(`${input.T_in}" ${FINISH_DISPLAY[input.finish]} pour`);
-    if (input.fiber)    items.push("Fiber reinforcement");
+    items.push("Wire mesh reinforcement (included)");
     if (input.rebar)    items.push("Rebar reinforcement");
     if (input.moisture) items.push("Moisture barrier");
     if (input.pump)     items.push("Pump truck");
     if (input.grading)  items.push("Grading / dirt backfill");
   }
-  if (input.coating_sqft > 0) items.push(`Decorative concrete coating (${input.coating_sqft} sqft)`);
-  if (input.border_lf > 0)    items.push(`Coating border (${input.border_lf} LF)`);
+  if (input.coating_sqft > 0)   items.push(`Decorative concrete coating (${input.coating_sqft} sqft)`);
+  if (input.border_lf > 0)      items.push(`Coating border (${input.border_lf} LF)`);
+  if (input.scoreline_sqft > 0) items.push(`Scoreline repair (${input.scoreline_sqft} sqft)`);
+  if (input.pattern && input.coating_sqft > 0)
+    items.push(`Brick / tile pattern (${input.coating_sqft} sqft)`);
+  if (input.removal && input.coating_sqft > 0)
+    items.push(`Existing coating removal (${input.coating_sqft} sqft)`);
   return items;
 }
 
 function renderQuote(q, input) {
   let summary = "";
   if (q.has_concrete) {
-    const L = $("L_ft").value;
-    const W = $("W_ft").value;
     summary =
       `<div class="quote-summary">` +
-        `${L}′ × ${W}′ × ${input.T_in}″ concrete slab` +
+        `${input.T_in}″ concrete slab` +
         `<span class="sqft">${q.dims.sqft.toFixed(0)} sqft</span>` +
       `</div>`;
-  } else if (input.coating_sqft > 0 || input.border_lf > 0) {
+  } else if (input.coating_sqft > 0 || input.border_lf > 0 ||
+             input.scoreline_sqft > 0 ||
+             (input.pattern && input.coating_sqft > 0) ||
+             (input.removal && input.coating_sqft > 0)) {
     summary =
       `<div class="quote-summary">` +
         `Decorative concrete coating` +
@@ -884,7 +895,7 @@ function bomLine(label, qty, rate, total) {
 function renderCost(q, input) {
   const dimsLine = !q.has_concrete ? "" :
     `<div class="bom-section">` +
-      `<div class="bom-line"><span class="label">${$("L_ft").value}′ × ${$("W_ft").value}′ × ${input.T_in}″</span><span></span><span></span><span class="total">${q.dims.sqft.toFixed(0)} sqft</span></div>` +
+      `<div class="bom-line"><span class="label">${input.T_in}″ concrete slab</span><span></span><span></span><span class="total">${q.dims.sqft.toFixed(0)} sqft</span></div>` +
       `<div class="bom-line"><span class="label">Concrete (raw → waste → billed)</span><span></span><span></span><span class="total">${q.dims.raw_cuyd.toFixed(2)} → ${q.dims.waste_yards} → ${q.dims.billed_yards} yd</span></div>` +
     `</div>`;
 
@@ -955,8 +966,11 @@ function renderCost(q, input) {
 
 function recompute() {
   const input = readForm();
-  const has_concrete = input.L_ft > 0 && input.W_ft > 0;
-  const has_coatings = input.coating_sqft > 0 || input.border_lf > 0;
+  const has_concrete = input.sqft > 0;
+  const has_coatings = input.coating_sqft > 0 || input.border_lf > 0 ||
+                       input.scoreline_sqft > 0 ||
+                       (input.pattern && input.coating_sqft > 0) ||
+                       (input.removal && input.coating_sqft > 0);
 
   if (!has_concrete && !has_coatings) {
     $("readouts").innerHTML = "";
